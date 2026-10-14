@@ -1,8 +1,10 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\PendingUserController;
+use App\Http\Controllers\Api\AuditLogController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\VendorController;
@@ -41,7 +43,12 @@ Route::post('/register', [AuthController::class, 'register'])
 
 Route::middleware('auth:sanctum')->group(function () {
 
-    // Authentication
+    /*
+    |--------------------------------------------------------------------------
+    | Authentication
+    |--------------------------------------------------------------------------
+    */
+
     Route::post('/logout', [AuthController::class, 'logout']);
 
     /*
@@ -57,6 +64,16 @@ Route::middleware('auth:sanctum')->group(function () {
             '/pending-users/{user}/approve',
             [PendingUserController::class, 'approve']
         );
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | Audit Trail — Owner Only
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware(['role:Owner', 'permission:audit_logs.view'])->group(function () {
+        Route::get('/audit-logs', [AuditLogController::class, 'index']);
     });
 
     /*
@@ -196,7 +213,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Cash Receipts Book
+    | Cash Receipts
     |--------------------------------------------------------------------------
     */
 
@@ -206,8 +223,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/cash-receipts', [CashReceiptController::class, 'store'])
         ->middleware('permission:cash_receipts.create');
 
-    Route::post('/cash-receipts/{cashReceipt}/post', [CashReceiptController::class, 'post'])
-        ->middleware('permission:cash_receipts.post');
+    Route::post(
+        '/cash-receipts/{cashReceipt}/post',
+        [CashReceiptController::class, 'post']
+    )->middleware('permission:cash_receipts.post');
 
     Route::get('/cash-receipts/{cashReceipt}', [CashReceiptController::class, 'show'])
         ->middleware('permission:cash_receipts.view');
@@ -220,7 +239,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Cash Disbursements Book
+    | Cash Disbursements
     |--------------------------------------------------------------------------
     */
 
@@ -230,8 +249,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/cash-disbursements', [CashDisbursementController::class, 'store'])
         ->middleware('permission:cash_disbursements.create');
 
-    Route::post('/cash-disbursements/{cashDisbursement}/post', [CashDisbursementController::class, 'post'])
-        ->middleware('permission:cash_disbursements.post');
+    Route::post(
+        '/cash-disbursements/{cashDisbursement}/post',
+        [CashDisbursementController::class, 'post']
+    )->middleware('permission:cash_disbursements.post');
 
     Route::get('/cash-disbursements/{cashDisbursement}', [CashDisbursementController::class, 'show'])
         ->middleware('permission:cash_disbursements.view');
@@ -244,7 +265,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Request for Payment (RFP)
+    | Requests for Payment (RFP)
     |--------------------------------------------------------------------------
     */
 
@@ -308,14 +329,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/cash-check-vouchers', [CashCheckVoucherController::class, 'store'])
         ->middleware('permission:vouchers.create');
 
-    Route::post('/cash-check-vouchers/{cashCheckVoucher}/approve', [CashCheckVoucherController::class, 'approve'])
-        ->middleware('permission:vouchers.approve');
+    Route::post(
+        '/cash-check-vouchers/{cashCheckVoucher}/approve',
+        [CashCheckVoucherController::class, 'approve']
+    )->middleware('permission:vouchers.approve');
 
-    Route::post('/cash-check-vouchers/{cashCheckVoucher}/release', [CashCheckVoucherController::class, 'release'])
-        ->middleware('permission:vouchers.post');
+    Route::post(
+        '/cash-check-vouchers/{cashCheckVoucher}/release',
+        [CashCheckVoucherController::class, 'release']
+    )->middleware('permission:vouchers.post');
 
-    Route::post('/cash-check-vouchers/{cashCheckVoucher}/pay', [CashCheckVoucherController::class, 'pay'])
-        ->middleware('permission:rfp.pay');
+    Route::post(
+        '/cash-check-vouchers/{cashCheckVoucher}/pay',
+        [CashCheckVoucherController::class, 'pay']
+    )->middleware('permission:rfp.pay');
 
     Route::get('/cash-check-vouchers/{cashCheckVoucher}', [CashCheckVoucherController::class, 'show'])
         ->middleware('permission:vouchers.view');

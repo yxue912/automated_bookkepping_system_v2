@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 
@@ -29,7 +31,7 @@ class PendingUserController extends Controller
     /**
      * Approve an account and assign the Staff role.
      */
-    public function approve(User $user): JsonResponse
+    public function approve(Request $request, User $user): JsonResponse
     {
         if ($user->is_active) {
             return response()->json([
@@ -55,6 +57,26 @@ class PendingUserController extends Controller
 
             $user->syncRoles([$staffRole]);
         });
+
+        try {
+            AuditLog::create([
+                'user_id' => $request->user()->id,
+                'event' => 'account.approved',
+                'description' => 'Owner approved a pending account and assigned Staff role.',
+                'ip_address' => $request->ip(),
+                'user_agent' => mb_substr(
+                    (string) $request->userAgent(),
+                    0,
+                    500
+                ),
+                'metadata' => [
+                    'approved_user_id' => $user->id,
+                    'assigned_role' => 'Staff',
+                ],
+            ]);
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
 
         return response()->json([
             'success' => true,

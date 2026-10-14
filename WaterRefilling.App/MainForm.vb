@@ -412,59 +412,92 @@ Public Sub New()
     End Function
 
     Private Function IsMenuAllowed(menuName As String) As Boolean
-    if String.Equals(
-        menuName.Trim(),
-        "Account Approvals",
-        StringComparison.OrdinalIgnoreCase) Then
+        menuName = If(menuName, "").Trim()
 
-    Return HasRole("Owner") AndAlso
+        ' Account approvals are available only to an Owner with user-management permission.
+        If String.Equals(
+            menuName,
+            "Account Approvals",
+            StringComparison.OrdinalIgnoreCase) Then
+
+            Return HasRole("Owner") AndAlso
                 ApiSession.HasServerPermissions AndAlso
                 ApiSession.CurrentUserPermissions IsNot Nothing AndAlso
                 ApiSession.CurrentUserPermissions.Contains("users.manage")
         End If
+
+        ' Admin is limited to technical/security functions by design.
         If HasRole("Admin") Then
-    Select Case menuName.Trim()
-        Case "Dashboard",
-             "Authentication & Security",
-             "System Setup"
+            Select Case menuName
+                Case "Dashboard",
+                     "Authentication & Security",
+                     "System Setup"
 
-            Return True
+                    Return True
 
-        Case Else
-            Return False
-    End Select
-End If
-        If ApiSession.HasServerPermissions Then
-            Dim permissions As List(Of String) = ApiSession.CurrentUserPermissions
-            Select Case menuName.Trim()
-                Case "Dashboard"
-                    Return permissions.Contains("dashboard.view")
-                Case "Master Data"
-                    Return permissions.Contains("accounts.view")
-                Case "Fixed Assets"
-                    Return permissions.Contains("fixed_assets.view")
-                Case "Transactions"
-                    Return permissions.Contains("cash_receipts.view") OrElse
-                        permissions.Contains("cash_disbursements.view")
-                Case "Cash Receipts Book"
-                    Return permissions.Contains("cash_receipts.view")
-                Case "Cash Disbursements"
-                    Return permissions.Contains("cash_disbursements.view")
-                Case "Journal Entries"
-                    Return permissions.Contains("journal.view")
-                Case "General Ledger"
-                    Return permissions.Contains("ledger.view")
-                Case "Financial Reports"
-                    Return permissions.Contains("financial_reports.view") OrElse
-                        permissions.Contains("trial_balance.view")
-                Case "Lapsing Schedule"
-                    Return permissions.Contains("financial_reports.view")
-                Case "Trial Balance"
-                    Return permissions.Contains("trial_balance.view")
+                Case Else
+                    Return False
             End Select
         End If
 
-        Select Case menuName.Trim()
+        ' Prefer server-provided permissions when available.
+        If ApiSession.HasServerPermissions AndAlso
+            ApiSession.CurrentUserPermissions IsNot Nothing Then
+
+            Dim permissions As List(Of String) =
+                ApiSession.CurrentUserPermissions
+
+            Select Case menuName
+                Case "Dashboard"
+                    Return permissions.Contains("dashboard.view")
+
+                Case "Master Data"
+                    Return permissions.Contains("accounts.view")
+
+                Case "Fixed Assets"
+                    Return permissions.Contains("fixed_assets.view")
+
+                Case "Transactions"
+                    Return permissions.Contains("cash_receipts.view") OrElse
+                        permissions.Contains("cash_disbursements.view")
+
+                Case "Cash Receipts Book"
+                    Return permissions.Contains("cash_receipts.view")
+
+                Case "Cash Disbursements"
+                    Return permissions.Contains("cash_disbursements.view")
+
+                Case "Journal Entries"
+                    Return permissions.Contains("journal.view")
+
+                Case "General Ledger"
+                    Return permissions.Contains("ledger.view")
+
+                Case "Financial Reports"
+                    Return permissions.Contains("financial_reports.view") OrElse
+                        permissions.Contains("trial_balance.view")
+
+                Case "Lapsing Schedule"
+                    Return permissions.Contains("financial_reports.view")
+
+                Case "Trial Balance"
+                    Return permissions.Contains("trial_balance.view")
+
+                Case "Audit Trail"
+                    Return HasRole("Owner") AndAlso
+                        permissions.Contains("audit_logs.view")
+
+                Case "Settings"
+                    Return HasRole("Owner") AndAlso
+                        (permissions.Contains("organization.view") OrElse
+                         permissions.Contains("organization.edit") OrElse
+                         permissions.Contains("system_settings.view") OrElse
+                         permissions.Contains("system_settings.edit"))
+            End Select
+        End If
+
+        ' Conservative fallback for sessions without server permissions.
+        Select Case menuName
             Case "Dashboard"
                 Return HasRole("Owner") OrElse HasRole("Staff")
 
@@ -480,6 +513,9 @@ End If
                  "Trial Balance"
 
                 Return HasRole("Owner")
+
+            Case "Audit Trail", "Settings", "Account Approvals"
+                Return False
 
             Case Else
                 Return False
@@ -1249,6 +1285,65 @@ End Sub
 
                 Using ledger As New GeneralLedgerForm()
                     ledger.ShowDialog(Me)
+                End Using
+            Case "Authentication & Security"
+                If Not HasRole("Admin") Then
+                    MessageBox.Show(
+                        "Only Admin can access Authentication & Security.",
+                        "Access Denied",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning)
+                    Return
+                End If
+
+                Using security As New AuthenticationSecurityForm()
+                    security.ShowDialog(Me)
+                End Using
+
+            Case "System Setup"
+                If Not HasRole("Admin") Then
+                    MessageBox.Show(
+                        "Only Admin can access System Setup.",
+                        "Access Denied",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning)
+                    Return
+                End If
+
+                Using settings As New OwnerSystemSettingsForm()
+                    settings.ShowDialog(Me)
+                End Using
+
+            Case "Settings"
+                If Not HasRole("Owner") Then
+                    MessageBox.Show(
+                        "Only the Owner can access Business Settings.",
+                        "Access Denied",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning)
+                    Return
+                End If
+
+                Using settings As New OwnerBusinessSettingsForm()
+                    settings.ShowDialog(Me)
+                End Using
+
+            Case "Audit Trail"
+                If Not HasRole("Owner") OrElse
+                    Not ApiSession.HasServerPermissions OrElse
+                    ApiSession.CurrentUserPermissions Is Nothing OrElse
+                    Not ApiSession.CurrentUserPermissions.Contains("audit_logs.view") Then
+
+                    MessageBox.Show(
+                        "Only an Owner with audit-log viewing permission can access Audit Trail.",
+                        "Access Denied",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning)
+                    Return
+                End If
+
+                Using audit As New AuditTrailForm()
+                    audit.ShowDialog(Me)
                 End Using
 
             Case "Account Approvals"
