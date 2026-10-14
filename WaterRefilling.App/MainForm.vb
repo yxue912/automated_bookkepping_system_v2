@@ -337,6 +337,7 @@ Public Sub New()
 
         AddSidebarButton("Audit Trail")
         AddSidebarButton("Settings")
+        AddSidebarButton("Account Approvals")
 
         ApplyRoleBasedMenuVisibility()
 
@@ -411,6 +412,28 @@ Public Sub New()
     End Function
 
     Private Function IsMenuAllowed(menuName As String) As Boolean
+    if String.Equals(
+        menuName.Trim(),
+        "Account Approvals",
+        StringComparison.OrdinalIgnoreCase) Then
+
+    Return HasRole("Owner") AndAlso
+                ApiSession.HasServerPermissions AndAlso
+                ApiSession.CurrentUserPermissions IsNot Nothing AndAlso
+                ApiSession.CurrentUserPermissions.Contains("users.manage")
+        End If
+        If HasRole("Admin") Then
+    Select Case menuName.Trim()
+        Case "Dashboard",
+             "Authentication & Security",
+             "System Setup"
+
+            Return True
+
+        Case Else
+            Return False
+    End Select
+End If
         If ApiSession.HasServerPermissions Then
             Dim permissions As List(Of String) = ApiSession.CurrentUserPermissions
             Select Case menuName.Trim()
@@ -440,7 +463,6 @@ Public Sub New()
                     Return permissions.Contains("trial_balance.view")
             End Select
         End If
-        If HasRole("Admin") Then Return True
 
         Select Case menuName.Trim()
             Case "Dashboard"
@@ -1227,6 +1249,26 @@ End Sub
 
                 Using ledger As New GeneralLedgerForm()
                     ledger.ShowDialog(Me)
+                End Using
+
+            Case "Account Approvals"
+                If Not HasRole("Owner") OrElse
+                    Not ApiSession.HasServerPermissions OrElse
+                    ApiSession.CurrentUserPermissions Is Nothing OrElse
+                    Not ApiSession.CurrentUserPermissions.Contains("users.manage") Then
+
+                    MessageBox.Show(
+                        "Only an authorized Owner can access account approvals.",
+                        "Access Denied",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning)
+                    Return
+                End If
+
+                pageTitle.Text = "Account Approvals"
+
+                Using approvals As New PendingAccountApprovalsForm()
+                    approvals.ShowDialog(Me)
                 End Using
 
             Case Else

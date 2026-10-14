@@ -21,33 +21,52 @@ class RegisteredUserController extends Controller
     public function create(): View
     {
         abort_unless(config('auth.allow_registration'), 404);
+
         return view('auth.register');
     }
 
     /**
-     * Handle an incoming registration request.
+     * Create an account pending Owner approval.
      *
      * @throws ValidationException
      */
     public function store(Request $request): RedirectResponse
     {
         abort_unless(config('auth.allow_registration'), 404);
-        $request->validate([
+
+        $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
-            'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'email' => [
+                'required',
+                'string',
+                'lowercase',
+                'email',
+                'max:255',
+                'unique:' . User::class,
+            ],
+            'password' => [
+                'required',
+                'confirmed',
+                Rules\Password::defaults(),
+            ],
         ]);
 
-        $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-        ]);
+        $user = new User();
+        $user->name = $validated['name'];
+        $user->email = $validated['email'];
+        $user->password = Hash::make($validated['password']);
+        $user->is_active = false;
+        $user->save();
 
         event(new Registered($user));
 
-        Auth::login($user);
+        Auth::logout();
 
-        return redirect(route('dashboard', absolute: false));
+        return redirect()
+            ->route('login')
+            ->with(
+                'status',
+                'Account created successfully. Please wait for Owner approval before logging in.'
+            );
     }
 }

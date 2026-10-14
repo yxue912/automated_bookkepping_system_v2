@@ -311,51 +311,45 @@ class DatabaseSeeder extends Seeder
         */
 
         if ($admin) {
-            $admin->givePermissionTo(Permission::all());
-        }
+    $admin->syncPermissions([]);
+}
 
+/*
+|--------------------------------------------------------------------------
+| OWNER PERMISSIONS
+|--------------------------------------------------------------------------
+*/
 
-        /*
-        |--------------------------------------------------------------------------
-        | OWNER PERMISSIONS
-        |--------------------------------------------------------------------------
-        */
+$ownerPermissions = Permission::whereNotIn('name', [
 
-        $ownerPermissions = Permission::whereNotIn('name', [
+    // Role administration
+    'roles.view',
+    'roles.create',
+    'roles.edit',
+    'roles.delete',
+    'roles.manage',
 
-            // User administration
-            'users.create',
-            'users.edit',
-            'users.delete',
-            'users.manage',
+    // Permission administration
+    'permissions.view',
+    'permissions.create',
+    'permissions.edit',
+    'permissions.delete',
+    'permissions.manage',
 
-            // Role administration
-            'roles.view',
-            'roles.create',
-            'roles.edit',
-            'roles.delete',
-            'roles.manage',
+    // Security administration
+    'audit_logs.manage',
 
-            // Permission administration
-            'permissions.view',
-            'permissions.create',
-            'permissions.edit',
-            'permissions.delete',
-            'permissions.manage',
+    // Database administration
+    'database_backup.restore',
+    'database_backup.manage',
 
-            // Security administration
-            'audit_logs.manage',
+    // System administration
+    'system_maintenance.manage',
 
-            // Database administration
-            'database_backup.restore',
-            'database_backup.manage',
+])->where('guard_name', 'web')->get();
 
-            // System administration
-            'system_maintenance.manage',
+$ownerRole->syncPermissions($ownerPermissions);
 
-        ])->get();
-
-        $ownerRole->givePermissionTo($ownerPermissions);
 
 
         /*
@@ -426,8 +420,9 @@ class DatabaseSeeder extends Seeder
             // Password
             'password.change',
 
-        ])->get();
+        ])->where('guard_name', 'web')->get();
 
-        $staffRole->givePermissionTo($staffPermissions);
+        $staffRole->syncPermissions($staffPermissions);
+
     }
 }
