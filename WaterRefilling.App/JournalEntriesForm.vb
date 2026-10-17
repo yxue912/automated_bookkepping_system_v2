@@ -233,9 +233,9 @@ Public Class JournalEntriesForm
                     rows.Add(New JournalEntryRow With {
                         .ID = entry.Id,
                         .JournalNumber = entry.JournalNumber,
-                        .Date = entry.EntryDate,
+                        .Date = FormatDate(entry.EntryDate),
                         .Description = entry.Description,
-                        .ReferenceType = entry.ReferenceType,
+                        .ReferenceType = FormatReferenceType(entry.ReferenceType),
                         .ReferenceID = entry.ReferenceId,
                         .Status = entry.Status,
                         .TotalDebit = totalDebit,
@@ -255,6 +255,16 @@ Public Class JournalEntriesForm
                 If entriesGrid.Columns.Contains("ReferenceID") Then
                     entriesGrid.Columns("ReferenceID").Visible = False
                 End If
+
+                ' Use readable column headings instead of raw property names.
+                SetColumnHeader(entriesGrid, "JournalNumber", "Journal Number", 105)
+                SetColumnHeader(entriesGrid, "Date", "Date", 105)
+                SetColumnHeader(entriesGrid, "Description", "Description", 170)
+                SetColumnHeader(entriesGrid, "ReferenceType", "Reference Type", 110)
+                SetColumnHeader(entriesGrid, "Status", "Status", 75)
+                SetColumnHeader(entriesGrid, "TotalDebit", "Total Debit", 100)
+                SetColumnHeader(entriesGrid, "TotalCredit", "Total Credit", 100)
+                SetColumnHeader(entriesGrid, "Balanced", "Balanced", 75)
 
                 If entriesGrid.Columns.Contains("TotalDebit") Then
                     entriesGrid.Columns("TotalDebit").DefaultCellStyle.Format = "N2"
@@ -541,6 +551,12 @@ Public Class JournalEntriesForm
                     linesGrid.DataSource = Nothing
                     linesGrid.DataSource = detailRows
 
+                    SetColumnHeader(linesGrid, "AccountID", "Account ID", 75)
+                    SetColumnHeader(linesGrid, "AccountName", "Account", 180)
+                    SetColumnHeader(linesGrid, "Description", "Description", 180)
+                    SetColumnHeader(linesGrid, "DebitAmount", "Debit Amount", 110)
+                    SetColumnHeader(linesGrid, "CreditAmount", "Credit Amount", 110)
+
                     If linesGrid.Columns.Contains("DebitAmount") Then
                         linesGrid.Columns("DebitAmount").DefaultCellStyle.Format = "N2"
                     End If
@@ -587,6 +603,68 @@ Public Class JournalEntriesForm
         Finally
             UpdatePostButtonState()
         End Try
+    End Function
+
+    Private Shared Sub SetColumnHeader(
+        grid As DataGridView,
+        columnName As String,
+        headerText As String,
+        fillWeight As Single
+    )
+        If grid.Columns.Contains(columnName) Then
+            grid.Columns(columnName).HeaderText = headerText
+            grid.Columns(columnName).FillWeight = fillWeight
+        End If
+    End Sub
+
+    Private Shared Function FormatReferenceType(value As String) As String
+        If String.IsNullOrWhiteSpace(value) Then Return ""
+
+        Select Case value.Trim().ToLowerInvariant()
+            Case "cashreceipt"
+                Return "Cash Receipt"
+            Case "cashdisbursement"
+                Return "Cash Disbursement"
+            Case "journalentry"
+                Return "Journal Entry"
+            Case Else
+                ' Add spaces when an API value uses PascalCase, without changing stored data.
+                Dim result As New System.Text.StringBuilder()
+
+                For index As Integer = 0 To value.Trim().Length - 1
+                    Dim currentCharacter As Char = value.Trim()(index)
+
+                    If index > 0 AndAlso
+                       Char.IsUpper(currentCharacter) AndAlso
+                       (Char.IsLower(value.Trim()(index - 1)) OrElse
+                        Char.IsDigit(value.Trim()(index - 1))) Then
+                        result.Append(" "c)
+                    End If
+
+                    result.Append(currentCharacter)
+                Next
+
+                Return result.ToString().Trim()
+        End Select
+    End Function
+
+    Private Shared Function FormatDate(value As String) As String
+        If String.IsNullOrWhiteSpace(value) Then Return ""
+
+        Dim parsed As DateTime
+        If DateTime.TryParse(
+            value,
+            Globalization.CultureInfo.InvariantCulture,
+            Globalization.DateTimeStyles.AssumeLocal,
+            parsed
+        ) Then
+            Return parsed.ToString(
+                "MMM dd, yyyy",
+                Globalization.CultureInfo.InvariantCulture
+            )
+        End If
+
+        Return value
     End Function
 
     Private Function ExtractApiMessage(body As String) As String

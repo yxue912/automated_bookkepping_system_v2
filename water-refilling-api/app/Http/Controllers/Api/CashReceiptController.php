@@ -79,6 +79,17 @@ class CashReceiptController extends Controller
                 ]);
             }
 
+            if (! in_array(
+                $creditAccount->account_type,
+                ['Revenue', 'Liability', 'Equity'],
+                true
+            )) {
+                throw ValidationException::withMessages([
+                    'account_id' =>
+                        'Cash receipts must use a Revenue, Liability, or Equity account.',
+                ]);
+            }
+
             $receiptData = $validated;
             $receiptData['status'] = 'Draft';
 
@@ -155,7 +166,8 @@ class CashReceiptController extends Controller
                 ->lockForUpdate()
                 ->get();
 
-            if ($entries->count() !== 1 || $entries->first()->status !== 'Draft') {
+            if ($entries->count() !== 1 ||
+                $entries->first()->status !== 'Draft') {
                 throw ValidationException::withMessages([
                     'journal_entry' =>
                         'This receipt requires exactly one Draft journal entry.',
@@ -166,6 +178,26 @@ class CashReceiptController extends Controller
 
             $receipt->status = 'Posted';
             $receipt->save();
+
+            // Record the audit event in the same transaction as posting.
+            $now = now();
+
+            DB::table('audit_logs')->insert([
+                'user_id' => request()->user()?->id,
+                'event' => 'cash_receipt.posted',
+                'description' => 'Cash receipt OR '
+                    . $receipt->or_number
+                    . ' posted successfully.',
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+                'metadata' => json_encode([
+                    'cash_receipt_id' => $receipt->id,
+                    'or_number' => $receipt->or_number,
+                    'amount' => $receipt->amount,
+                ], JSON_THROW_ON_ERROR),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -220,10 +252,16 @@ class CashReceiptController extends Controller
         ]);
 
         DB::transaction(function () use ($validated, $cashReceipt) {
-            $cashReceipt = CashReceipt::whereKey($cashReceipt->id)->lockForUpdate()->firstOrFail();
+            $cashReceipt = CashReceipt::whereKey($cashReceipt->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
             if ($cashReceipt->status !== 'Draft') {
-                throw ValidationException::withMessages(['status' => 'Only Draft receipts can be edited.']);
+                throw ValidationException::withMessages([
+                    'status' => 'Only Draft receipts can be edited.',
+                ]);
             }
+
             $depositAccount = Account::findOrFail(
                 $validated['deposit_account_id']
             );
@@ -241,15 +279,33 @@ class CashReceiptController extends Controller
                 ]);
             }
 
+            if (! in_array(
+                $creditAccount->account_type,
+                ['Revenue', 'Liability', 'Equity'],
+                true
+            )) {
+                throw ValidationException::withMessages([
+                    'account_id' =>
+                        'Cash receipts must use a Revenue, Liability, or Equity account.',
+                ]);
+            }
+
             $entries = JournalEntry::where(
                 'reference_type',
                 'CashReceipt'
             )
                 ->where('reference_id', $cashReceipt->id)
-                ->lockForUpdate()->get();
-            if ($entries->count() !== 1 || $entries->first()->status !== 'Draft') {
-                throw ValidationException::withMessages(['journal_entry' => 'This receipt requires exactly one Draft journal entry.']);
+                ->lockForUpdate()
+                ->get();
+
+            if ($entries->count() !== 1 ||
+                $entries->first()->status !== 'Draft') {
+                throw ValidationException::withMessages([
+                    'journal_entry' =>
+                        'This receipt requires exactly one Draft journal entry.',
+                ]);
             }
+
             $entry = $entries->first();
 
             $cashReceipt->update($validated);
@@ -309,22 +365,32 @@ class CashReceiptController extends Controller
         }
 
         DB::transaction(function () use ($cashReceipt) {
-            $cashReceipt = CashReceipt::whereKey($cashReceipt->id)->lockForUpdate()->firstOrFail();
+            $cashReceipt = CashReceipt::whereKey($cashReceipt->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
             if ($cashReceipt->status !== 'Draft') {
-                throw ValidationException::withMessages(['status' => 'Only Draft receipts can be deleted.']);
+                throw ValidationException::withMessages([
+                    'status' => 'Only Draft receipts can be deleted.',
+                ]);
             }
+
             $entries = JournalEntry::where(
                 'reference_type',
                 'CashReceipt'
             )
                 ->where('reference_id', $cashReceipt->id)
-                ->lockForUpdate()->get();
-            if ($entries->count() !== 1 || $entries->first()->status !== 'Draft') {
+                ->lockForUpdate()
+                ->get();
+
+            if ($entries->count() !== 1 ||
+                $entries->first()->status !== 'Draft') {
                 throw ValidationException::withMessages([
                     'journal_entry' =>
                         'This receipt requires exactly one Draft journal entry.',
                 ]);
             }
+
             $entry = $entries->first();
             $entry->lines()->delete();
             $entry->delete();

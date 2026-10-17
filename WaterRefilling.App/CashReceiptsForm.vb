@@ -422,11 +422,16 @@ Public Class CashReceiptsForm
                 depositAccountCombo.Items.Clear()
 
                 For Each account As AccountItem In accounts
-                    If account.AccountType <> "Asset" Then
+                    ' Ordinary receipts may credit Revenue, Liability, or Equity accounts.
+                    ' Expense accounts are excluded from this standard receipt workflow.
+                    If IsAllowedReceiptCreditType(account.AccountType) Then
                         glAccountCombo.Items.Add(account)
                     End If
 
-                    If account.AccountType = "Asset" Then
+                    If String.Equals(
+                        account.AccountType,
+                        "Asset",
+                        StringComparison.OrdinalIgnoreCase) Then
                         depositAccountCombo.Items.Add(account)
                     End If
                 Next
@@ -445,6 +450,17 @@ Public Class CashReceiptsForm
         Catch ex As Exception
             SetStatus("Could not load accounts: " & ex.Message, True)
         End Try
+    End Function
+
+    Private Shared Function IsAllowedReceiptCreditType(accountType As String) As Boolean
+        If String.IsNullOrWhiteSpace(accountType) Then Return False
+
+        Select Case accountType.Trim().ToLowerInvariant()
+            Case "revenue", "liability", "equity"
+                Return True
+            Case Else
+                Return False
+        End Select
     End Function
 
     Private Async Function LoadReceiptsAsync() As Task

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\JournalEntry;
 use App\Services\JournalEntryService;
 use Illuminate\Http\JsonResponse;
@@ -14,10 +15,18 @@ class JournalEntryController extends Controller
 {
     private function isSystemSource(?string $referenceType): bool
     {
-        $parts = explode('/', str_replace('\\', '/', strtolower(trim((string) $referenceType))));
+        $parts = explode(
+            '/',
+            str_replace('\\', '/', strtolower(trim((string) $referenceType)))
+        );
+
         $name = preg_replace('/[^a-z0-9]/', '', end($parts));
 
-        return in_array($name, ['cashreceipt', 'cashdisbursement'], true);
+        return in_array(
+            $name,
+            ['cashreceipt', 'cashdisbursement'],
+            true
+        );
     }
 
     public function index(): JsonResponse
@@ -94,12 +103,19 @@ class JournalEntryController extends Controller
             ],
         ]);
 
-        if ($this->isSystemSource($validated['reference_type'] ?? null) ||
-            (isset($validated['reference_type']) !== isset($validated['reference_id']))) {
-            throw ValidationException::withMessages(['reference_type' => 'Source journal references are managed by their source document.']);
+        if (
+            $this->isSystemSource($validated['reference_type'] ?? null) ||
+            (
+                isset($validated['reference_type']) !==
+                isset($validated['reference_id'])
+            )
+        ) {
+            throw ValidationException::withMessages([
+                'reference_type' =>
+                    'Source journal references are managed by their source document.',
+            ]);
         }
 
-        // Validate line structure and balance before saving.
         $totalDebits = '0.00';
         $totalCredits = '0.00';
 
@@ -107,8 +123,16 @@ class JournalEntryController extends Controller
             $debit = (string) $line['debit_amount'];
             $credit = (string) $line['credit_amount'];
 
-            if ((bccomp($debit, '0', 2) > 0 && bccomp($credit, '0', 2) > 0) ||
-                (bccomp($debit, '0', 2) === 0 && bccomp($credit, '0', 2) === 0)) {
+            if (
+                (
+                    bccomp($debit, '0', 2) > 0 &&
+                    bccomp($credit, '0', 2) > 0
+                ) ||
+                (
+                    bccomp($debit, '0', 2) === 0 &&
+                    bccomp($credit, '0', 2) === 0
+                )
+            ) {
                 throw ValidationException::withMessages([
                     "lines.$index" =>
                         'Each journal line must contain either a debit or a credit, not both or neither.',
@@ -119,14 +143,17 @@ class JournalEntryController extends Controller
             $totalCredits = bcadd($totalCredits, $credit, 2);
         }
 
-        if ($totalDebits !== $totalCredits) {
+        if (bccomp($totalDebits, $totalCredits, 2) !== 0) {
             throw ValidationException::withMessages([
                 'lines' =>
                     'Total debits must equal total credits before saving the journal entry.',
             ]);
         }
 
-        $entry = DB::transaction(function () use ($validated, $request) {
+        $entry = DB::transaction(function () use (
+            $validated,
+            $request
+        ) {
             $entry = JournalEntry::create([
                 'journal_number' => $validated['journal_number'],
                 'journal_date' => $validated['journal_date'],
@@ -142,6 +169,21 @@ class JournalEntryController extends Controller
             return $entry;
         });
 
+        AuditLog::create([
+            'user_id' => $request->user()?->id,
+            'event' => 'journal_entry.created',
+            'description' => 'Journal entry '
+                . $entry->journal_number
+                . ' created as Draft.',
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'metadata' => [
+                'journal_entry_id' => $entry->id,
+                'journal_number' => $entry->journal_number,
+                'description' => $entry->description,
+            ],
+        ]);
+
         return response()->json(
             $entry->load('lines.account'),
             201
@@ -153,14 +195,35 @@ class JournalEntryController extends Controller
         JournalEntryService $service
     ): JsonResponse {
         if ($this->isSystemSource($journalEntry->reference_type)) {
-            throw ValidationException::withMessages(['reference_type' => 'Post this journal through its source document.']);
+            throw ValidationException::withMessages([
+                'reference_type' =>
+                    'Post this journal through its source document.',
+            ]);
         }
-        // The service checks status, line structure, and balance
-        // inside its database transaction before posting.
+
         $service->post($journalEntry);
 
-        return response()->json(
-            $journalEntry->fresh()->load('lines.account', 'creator')
+        $postedEntry = $journalEntry->fresh()->load(
+            'lines.account',
+            'creator'
         );
+
+        $user = request()->user();
+
+        AuditLog::create([
+            'user_id' => $user?->id,
+            'event' => 'journal_entry.posted',
+            'description' => 'Journal entry '
+                . $postedEntry->journal_number
+                . ' posted successfully.',
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+            'metadata' => [
+                'journal_entry_id' => $postedEntry->id,
+                'journal_number' => $postedEntry->journal_number,
+            ],
+        ]);
+
+        return response()->json($postedEntry);
     }
 }
