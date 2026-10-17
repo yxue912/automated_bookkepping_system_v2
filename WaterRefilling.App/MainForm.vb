@@ -14,7 +14,7 @@ Public Class MainForm
     Private ReadOnly primaryGreen As Color = Color.FromArgb(46, 157, 88)
     Private ReadOnly deepGreen As Color = Color.FromArgb(23, 107, 58)
     Private ReadOnly pageBackground As Color = Color.FromArgb(245, 250, 245)
-    Private ReadOnly textColor As Color = Color.FromArgb(32, 51, 40)
+    Private ReadOnly textColor As Color = Color.FromArgb(38, 55, 70)
 
     Private sidebar As Panel
     Private menuFlow As FlowLayoutPanel
@@ -40,7 +40,8 @@ Public Class MainForm
     Private ReadOnly financialReportMenuButtons As New List(Of Button)
     Private ReadOnly sidebarMenuButtons As New List(Of Button)
     Private ReadOnly summaryValues As New Dictionary(Of String, Label)()
-
+    Private activityGrid As DataGridView
+    Private dashboardNotice As Label
     Private notificationClickFilter As NotificationOutsideClickFilter
 
     Private Class NotificationOutsideClickFilter
@@ -121,7 +122,7 @@ Public Sub New()
         sidebar = New Panel With {
             .Dock = DockStyle.Left,
             .Width = 245,
-            .BackColor = Color.White,
+            .BackColor = Color.FromArgb(248, 250, 251),
             .Padding = New Padding(0),
             .AutoScroll = False
         }
@@ -192,7 +193,7 @@ Public Sub New()
         Dim userPanel As New Panel With {
             .Dock = DockStyle.Bottom,
             .Height = 100,
-            .BackColor = Color.FromArgb(245, 250, 245)
+            .BackColor = Color.FromArgb(243, 246, 248)
         }
 
         sidebar.Controls.Add(userPanel)
@@ -366,14 +367,14 @@ Public Sub New()
                 If(isSubmenu, 8.5F, 9.5F)),
             .Cursor = Cursors.Hand,
             .BackColor = Color.White,
-            .ForeColor = Color.FromArgb(80, 100, 85),
+            .ForeColor = Color.FromArgb(65, 82, 96),
             .Visible = Not isSubmenu,
             .UseVisualStyleBackColor = False
         }
 
         button.FlatAppearance.BorderSize = 0
         button.FlatAppearance.MouseOverBackColor =
-            Color.FromArgb(238, 248, 240)
+            Color.FromArgb(220, 235, 239)
 
         Return button
     End Function
@@ -640,7 +641,7 @@ End Sub
             .Text = "Fiscal Year " & DateTime.Now.Year.ToString(),
             .Font = New Font("Segoe UI", 9),
             .ForeColor = deepGreen,
-            .BackColor = Color.FromArgb(238, 248, 240),
+            .BackColor = Color.FromArgb(232, 242, 244),
             .TextAlign = ContentAlignment.MiddleCenter,
             .Size = New Size(145, 35),
             .Anchor = AnchorStyles.Top Or AnchorStyles.Right,
@@ -675,7 +676,7 @@ End Sub
         AddHandler notificationButton.MouseEnter,
             Sub(sender, e)
                 notificationButton.BackColor =
-                    Color.FromArgb(238, 248, 240)
+                    Color.FromArgb(232, 242, 244)
                 notificationButton.Invalidate()
             End Sub
 
@@ -741,7 +742,7 @@ End Sub
             .Text = "Mark as read",
             .Size = New Size(100, 30),
             .Location = New Point(205, 112),
-            .BackColor = Color.FromArgb(238, 248, 240),
+            .BackColor = Color.FromArgb(232, 242, 244),
             .ForeColor = deepGreen,
             .FlatStyle = FlatStyle.Flat,
             .Cursor = Cursors.Hand
@@ -977,87 +978,110 @@ End Sub
         workspace.Controls.Clear()
         summaryValues.Clear()
 
+        Dim root As New TableLayoutPanel With {
+            .Dock = DockStyle.Top,
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .ColumnCount = 1,
+            .RowCount = 5,
+            .Padding = New Padding(4),
+            .BackColor = pageBackground
+        }
+        root.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100))
+        root.RowStyles.Add(New RowStyle(SizeType.Absolute, 48))
+        root.RowStyles.Add(New RowStyle(SizeType.Absolute, 32))
+        root.RowStyles.Add(New RowStyle(SizeType.Absolute, 48))
+        root.RowStyles.Add(New RowStyle(SizeType.AutoSize))
+        root.RowStyles.Add(New RowStyle(SizeType.Absolute, 400))
+
         Dim welcome As New Label With {
             .Text = "Welcome to Aqua ARC!",
+            .Dock = DockStyle.Fill,
             .Font = New Font("Segoe UI", 23, FontStyle.Bold),
             .ForeColor = deepGreen,
-            .Location = New Point(25, 20),
-            .AutoSize = True
+            .TextAlign = ContentAlignment.MiddleLeft
         }
-
-        workspace.Controls.Add(welcome)
 
         Dim description As New Label With {
             .Text = "Monitor your finances, accounts, and transactions in one place.",
+            .Dock = DockStyle.Fill,
             .Font = New Font("Segoe UI", 10),
-            .ForeColor = Color.FromArgb(113, 132, 119),
-            .Location = New Point(28, 65),
-            .AutoSize = True
+            .ForeColor = Color.FromArgb(95, 115, 101),
+            .TextAlign = ContentAlignment.MiddleLeft
         }
 
-        workspace.Controls.Add(description)
-
-        Dim notice As New Label With {
-            .Text = "Connecting to financial data...",
+        dashboardNotice = New Label With {
             .Name = "dashboardNotice",
+            .Text = "Connecting to financial data...",
+            .Dock = DockStyle.Fill,
             .Font = New Font("Segoe UI", 9, FontStyle.Bold),
             .ForeColor = deepGreen,
             .BackColor = Color.FromArgb(228, 245, 232),
-            .Location = New Point(28, 100),
-            .Size = New Size(430, 32),
-            .TextAlign = ContentAlignment.MiddleCenter
+            .TextAlign = ContentAlignment.MiddleLeft,
+            .Padding = New Padding(12, 0, 0, 0)
+        }
+        MakeRounded(dashboardNotice, 8)
+
+        root.Controls.Add(welcome, 0, 0)
+        root.Controls.Add(description, 0, 1)
+        root.Controls.Add(dashboardNotice, 0, 2)
+
+        Dim cards As New TableLayoutPanel With {
+            .Dock = DockStyle.Top,
+            .AutoSize = True,
+            .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            .ColumnCount = 3,
+            .RowCount = 2,
+            .Padding = New Padding(0, 12, 0, 12),
+            .BackColor = pageBackground
+        }
+        For i As Integer = 0 To 2
+            cards.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 33.3333F))
+        Next
+        cards.RowStyles.Add(New RowStyle(SizeType.Absolute, 130))
+        cards.RowStyles.Add(New RowStyle(SizeType.Absolute, 130))
+
+        AddSummaryCard(cards, "CASH BALANCE", "Loading...", "Available cash", 0, 0, True)
+        AddSummaryCard(cards, "TOTAL INCOME", "Loading...", "Recorded income", 1, 0)
+        AddSummaryCard(cards, "TOTAL EXPENSES", "Loading...", "Recorded expenses", 2, 0)
+        AddSummaryCard(cards, "RECEIVABLES", "Loading...", "Outstanding amounts", 0, 1)
+        AddSummaryCard(cards, "PAYABLES", "Loading...", "Amounts owed", 1, 1)
+        AddSummaryCard(cards, "TOTAL ASSETS", "Loading...", "Recorded assets", 2, 1)
+        root.Controls.Add(cards, 0, 3)
+
+        Dim activityPanel As New Panel With {
+            .Dock = DockStyle.Fill,
+            .BackColor = Color.White,
+            .BorderStyle = BorderStyle.None,
+            .Padding = New Padding(14)
         }
 
-        MakeRounded(notice, 8)
-        workspace.Controls.Add(notice)
-
-        AddSummaryPanel(
-            "CASH BALANCE", "Loading...",
-            "Available cash", 25, 155, 360, 140, True)
-
-        AddSummaryPanel(
-            "TOTAL INCOME", "Loading...",
-            "Recorded income", 405, 155, 230, 140)
-
-        AddSummaryPanel(
-            "TOTAL EXPENSES", "Loading...",
-            "Recorded expenses", 655, 155, 230, 140)
-
-        AddSummaryPanel(
-            "RECEIVABLES", "Loading...",
-            "Outstanding amounts", 905, 155, 210, 140)
-
-        AddSummaryPanel(
-            "PAYABLES", "Loading...",
-            "Amounts owed", 25, 315, 250, 125)
-
-        AddSummaryPanel(
-            "TOTAL ASSETS", "Loading...",
-            "Recorded assets", 295, 315, 250, 125)
+        AddHandler activityPanel.Paint,
+            Sub(sender, e)
+                Using outline As New Pen(Color.FromArgb(218, 230, 220), 1.0F)
+                    e.Graphics.DrawRectangle(outline, 0, 0, activityPanel.Width - 1, activityPanel.Height - 1)
+                End Using
+            End Sub
 
         Dim activityTitle As New Label With {
             .Text = "Recent Activity",
-            .Font = New Font("Segoe UI", 17, FontStyle.Bold),
-            .ForeColor = textColor,
-            .Location = New Point(25, 475),
-            .AutoSize = True
+            .Dock = DockStyle.Top,
+            .Height = 32,
+            .Font = New Font("Segoe UI", 16, FontStyle.Bold),
+            .ForeColor = textColor
         }
-
-        workspace.Controls.Add(activityTitle)
 
         Dim activityDescription As New Label With {
-            .Text = "Your latest bookkeeping transactions will appear here.",
+            .Text = "Your latest bookkeeping transactions.",
+            .Dock = DockStyle.Top,
+            .Height = 26,
             .Font = New Font("Segoe UI", 9),
-            .ForeColor = Color.FromArgb(113, 132, 119),
-            .Location = New Point(28, 510),
-            .AutoSize = True
+            .ForeColor = Color.FromArgb(95, 115, 101)
         }
 
-        workspace.Controls.Add(activityDescription)
-
-        Dim activityGrid As New DataGridView With {
-            .Location = New Point(25, 545),
-            .Size = New Size(1060, 200),
+        activityGrid = New DataGridView With {
+            .Name = "activityGrid",
+            .Dock = DockStyle.Fill,
             .BackgroundColor = Color.White,
             .BorderStyle = BorderStyle.None,
             .ReadOnly = True,
@@ -1066,27 +1090,110 @@ End Sub
             .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
             .RowHeadersVisible = False,
             .SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-            .AutoGenerateColumns = False
+            .AutoGenerateColumns = False,
+            .EnableHeadersVisualStyles = False
         }
-
         activityGrid.Columns.Add("reference", "Reference")
         activityGrid.Columns.Add("date", "Date")
         activityGrid.Columns.Add("type", "Type")
         activityGrid.Columns.Add("description", "Description")
         activityGrid.Columns.Add("amount", "Amount")
         activityGrid.Columns.Add("status", "Status")
-
-        activityGrid.ColumnHeadersDefaultCellStyle.BackColor =
-            Color.FromArgb(228, 245, 232)
-
+        activityGrid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(228, 245, 232)
         activityGrid.ColumnHeadersDefaultCellStyle.ForeColor = deepGreen
-        activityGrid.EnableHeadersVisualStyles = False
+        activityGrid.ColumnHeadersDefaultCellStyle.Font = New Font("Segoe UI", 9, FontStyle.Bold)
+        activityGrid.ColumnHeadersHeight = 36
+        activityGrid.RowTemplate.Height = 32
+        activityGrid.GridColor = Color.FromArgb(230, 237, 231)
+        activityGrid.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal
+        activityGrid.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Single
+        activityGrid.DefaultCellStyle.ForeColor = textColor
+        activityGrid.DefaultCellStyle.SelectionBackColor = Color.FromArgb(228, 245, 232)
+        activityGrid.DefaultCellStyle.SelectionForeColor = deepGreen
 
-        activityGrid.Rows.Add(
-            "—", "—", "—",
-            "Recent activity is not connected yet", "—", "—")
+        activityPanel.Controls.Add(activityGrid)
+        activityPanel.Controls.Add(activityDescription)
+        activityPanel.Controls.Add(activityTitle)
+        root.Controls.Add(activityPanel, 0, 4)
 
-        workspace.Controls.Add(activityGrid)
+        workspace.Controls.Add(root)
+
+        AddHandler workspace.Resize,
+            Sub(sender, e)
+                Dim contentWidth As Integer = Math.Max(300, workspace.ClientSize.Width - workspace.Padding.Horizontal - 8)
+                root.Width = contentWidth
+                cards.Width = contentWidth
+                activityPanel.Width = contentWidth
+            End Sub
+
+        Dim initialWidth As Integer = Math.Max(300, workspace.ClientSize.Width - workspace.Padding.Horizontal - 8)
+        root.Width = initialWidth
+        cards.Width = initialWidth
+        activityPanel.Width = initialWidth
+    End Sub
+
+    Private Sub AddSummaryCard(
+        parent As TableLayoutPanel,
+        caption As String,
+        value As String,
+        detail As String,
+        column As Integer,
+        row As Integer,
+        Optional featured As Boolean = False)
+
+        Dim card As New Panel With {
+            .Dock = DockStyle.Fill,
+            .Margin = New Padding(7),
+            .BackColor = If(featured, Color.FromArgb(235, 247, 237), Color.White),
+            .Padding = New Padding(16, 12, 12, 10),
+            .BorderStyle = BorderStyle.None
+        }
+
+        ' Draw a complete, subtle outline rather than clipping the panel region.
+        AddHandler card.Paint,
+            Sub(sender, e)
+                Using outline As New Pen(Color.FromArgb(218, 230, 220), 1.0F)
+                    e.Graphics.DrawRectangle(outline, 0, 0, card.Width - 1, card.Height - 1)
+                End Using
+            End Sub
+
+        Dim accent As New Panel With {
+            .Dock = DockStyle.Left,
+            .Width = 5,
+            .BackColor = If(featured, deepGreen, primaryGreen)
+        }
+        card.Controls.Add(accent)
+
+        Dim title As New Label With {
+            .Text = caption,
+            .Dock = DockStyle.Top,
+            .Height = 25,
+            .Font = New Font("Segoe UI", 9, FontStyle.Bold),
+            .ForeColor = Color.FromArgb(80, 100, 85)
+        }
+
+        Dim amount As New Label With {
+            .Text = value,
+            .Dock = DockStyle.Top,
+            .Height = 38,
+            .Font = New Font("Segoe UI", If(featured, 17, 15), FontStyle.Bold),
+            .ForeColor = deepGreen,
+            .AutoEllipsis = True
+        }
+
+        Dim subtitle As New Label With {
+            .Text = detail,
+            .Dock = DockStyle.Bottom,
+            .Height = 24,
+            .Font = New Font("Segoe UI", 8),
+            .ForeColor = Color.FromArgb(105, 120, 108)
+        }
+
+        card.Controls.Add(subtitle)
+        card.Controls.Add(amount)
+        card.Controls.Add(title)
+        parent.Controls.Add(card, column, row)
+        summaryValues(caption) = amount
     End Sub
 
     Private Sub AddSummaryPanel(
@@ -1124,7 +1231,7 @@ End Sub
             .Location = New Point(18, 18),
             .AutoSize = True,
             .Font = New Font("Segoe UI", 9, FontStyle.Bold),
-            .ForeColor = Color.FromArgb(113, 132, 119)
+            .ForeColor = Color.FromArgb(95, 115, 101)
         }
 
         panel.Controls.Add(title)
@@ -1207,6 +1314,51 @@ End Sub
                     UpdateSummary(
                         "TOTAL ASSETS",
                         ReadJsonDecimal(data, "assets"))
+                    ' Load recent activity from the dashboard API.
+                    activityGrid.Rows.Clear()
+
+                    Dim activities As JsonElement
+
+                    If data.TryGetProperty(
+                        "recent_activity", activities) AndAlso
+                        activities.ValueKind = JsonValueKind.Array Then
+
+                        For Each activity As JsonElement In activities.EnumerateArray()
+                            Dim activityDate As String =
+                                ReadJsonText(activity, "date")
+
+                            Dim parsedDate As DateTime
+
+                            If DateTime.TryParse(
+                                activityDate,
+                                CultureInfo.InvariantCulture,
+                                DateTimeStyles.None,
+                                parsedDate) Then
+
+                                activityDate =
+                                    parsedDate.ToString("MMM dd, yyyy")
+                            End If
+
+                            activityGrid.Rows.Add(
+                                ReadJsonText(activity, "reference"),
+                                activityDate,
+                                ReadJsonText(activity, "type"),
+                                ReadJsonText(activity, "description"),
+                                FormatPeso(
+                                    ReadJsonDecimal(activity, "amount")),
+                                ReadJsonText(activity, "status"))
+                        Next
+                    End If
+
+                    If activityGrid.Rows.Count = 0 Then
+                        activityGrid.Rows.Add(
+                            "—",
+                            "—",
+                            "—",
+                            "No recent activity found.",
+                            "—",
+                            "—")
+                    End If
                 End Using
             End Using
 
@@ -1240,13 +1392,10 @@ End Sub
     End Sub
 
     Private Sub SetDashboardNotice(message As String)
-        For Each control As Control In workspace.Controls
-            If control.Name = "dashboardNotice" Then
-                control.Text = message
-                Exit For
-            End If
-        Next
-    End Sub
+    If dashboardNotice IsNot Nothing Then
+        dashboardNotice.Text = message
+    End If
+End Sub
 
     ' =========================================================
     ' NAVIGATION
@@ -1747,7 +1896,7 @@ End Sub
                         New Font("Segoe UI", 9, FontStyle.Bold)
 
                     .DefaultCellStyle.SelectionBackColor =
-                        Color.FromArgb(210, 235, 216)
+                        Color.FromArgb(205, 230, 230)
 
                     .DefaultCellStyle.SelectionForeColor = deepGreen
                 End With

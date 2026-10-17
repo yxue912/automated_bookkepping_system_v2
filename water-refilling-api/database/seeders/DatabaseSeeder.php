@@ -363,6 +363,9 @@ $ownerRole->syncPermissions($ownerPermissions);
             // Dashboard
             'dashboard.view',
 
+            // Chart of Accounts — allow Staff to select accounts in transaction forms
+            'accounts.view',
+
             // Customers
             'customers.view',
             'customers.create',

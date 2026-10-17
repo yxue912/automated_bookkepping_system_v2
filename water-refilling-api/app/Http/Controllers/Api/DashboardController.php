@@ -158,6 +158,48 @@ class DashboardController extends Controller
                 $expenses = bcadd($expenses, bcsub($debits, $credits, 2), 2);
             }
         }
+           // Fetch the 10 most recently created journal entries.
+        $recentActivity = DB::table('journal_entries as j')
+            ->leftJoin(
+                'journal_entry_lines as l',
+                'j.id',
+                '=',
+                'l.journal_entry_id'
+            )
+            ->select(
+                'j.journal_number as reference',
+                'j.journal_date as date',
+                'j.description',
+                'j.reference_type',
+                'j.status',
+                'j.created_at',
+                DB::raw(
+                    "COALESCE(SUM(l.debit_amount), 0) as amount"
+                )
+            )
+            ->groupBy(
+                'j.id',
+                'j.journal_number',
+                'j.journal_date',
+                'j.description',
+                'j.reference_type',
+                'j.status',
+                'j.created_at'
+            )
+            ->orderByDesc('j.created_at')
+            ->orderByDesc('j.id')
+            ->limit(10)
+            ->get()
+            ->map(function ($entry) {
+                return [
+                    'reference' => $entry->reference,
+                    'date' => $entry->date,
+                    'type' => $entry->reference_type ?: 'Journal Entry',
+                    'description' => $entry->description,
+                    'amount' => (float) $entry->amount,
+                    'status' => $entry->status,
+                ];
+            });
 
         return response()->json([
             'success' => true,
@@ -168,6 +210,7 @@ class DashboardController extends Controller
             'data' => [
                 'cash_balance' => (float) $cashBalance,
                 'income' => (float) $income,
+                'recent_activity' => $recentActivity,
                 'expenses' => (float) $expenses,
                 'receivables' => (float) $receivables,
                 'payables' => (float) $payables,

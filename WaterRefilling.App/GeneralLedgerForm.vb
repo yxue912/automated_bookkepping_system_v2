@@ -386,20 +386,20 @@ Public Class GeneralLedgerForm
             displayedAccounts = accounts.Where(
                 Function(a)
                     Return ContainsText(a.AccountCode, query) OrElse
-                           ContainsText(a.AccountName, query) OrElse
-                           ContainsText(a.AccountType, query) OrElse
-                           ContainsText(a.AccountId.ToString(), query) OrElse
-                           ContainsText(a.OpeningBalance, query) OrElse
-                           ContainsText(a.TotalDebits, query) OrElse
-                           ContainsText(a.TotalCredits, query) OrElse
-                           ContainsText(a.ClosingBalance, query) OrElse
-                           (a.Entries IsNot Nothing AndAlso
+                        ContainsText(a.AccountName, query) OrElse
+                        ContainsText(a.AccountType, query) OrElse
+                        ContainsText(a.AccountId.ToString(), query) OrElse
+                        ContainsText(a.OpeningBalance, query) OrElse
+                        ContainsText(a.TotalDebits, query) OrElse
+                        ContainsText(a.TotalCredits, query) OrElse
+                        ContainsText(a.ClosingBalance, query) OrElse
+                    (a.Entries IsNot Nothing AndAlso
                             a.Entries.Any(
                                 Function(entry)
                                     Return ContainsText(entry.JournalNumber, query) OrElse
-                                           ContainsText(entry.JournalDate, query) OrElse
-                                           ContainsText(entry.EntryDescription, query) OrElse
-                                           ContainsText(entry.LineDescription, query)
+                                        ContainsText(entry.JournalDate, query) OrElse
+                                        ContainsText(entry.EntryDescription, query) OrElse
+                                        ContainsText(entry.LineDescription, query)
                                 End Function))
                 End Function).ToList()
         End If
@@ -529,24 +529,24 @@ Public Class GeneralLedgerForm
             filteredEntries = entries.Where(
                 Function(entry)
                     Return ContainsText(selectedAccount.AccountCode, query) OrElse
-                           ContainsText(selectedAccount.AccountName, query) OrElse
-                           ContainsText(entry.JournalNumber, query) OrElse
-                           ContainsText(entry.JournalDate, query) OrElse
-                           ContainsText(entry.EntryDescription, query) OrElse
-                           ContainsText(entry.LineDescription, query)
+                        ContainsText(selectedAccount.AccountName, query) OrElse
+                        ContainsText(entry.JournalNumber, query) OrElse
+                        ContainsText(entry.JournalDate, query) OrElse
+                        ContainsText(entry.EntryDescription, query) OrElse
+                        ContainsText(entry.LineDescription, query)
                 End Function).ToList()
         End If
 
         Dim entryRows = filteredEntries.Select(
-            Function(entry) New With {
-                .Date = entry.JournalDate,
-                .JournalNumber = entry.JournalNumber,
-                .Description = entry.EntryDescription,
-                .LineDescription = entry.LineDescription,
-                .Debit = ToDecimal(entry.Debit),
-                .Credit = ToDecimal(entry.Credit),
-                .RunningBalance = ToDecimal(entry.RunningBalance)
-            }).ToList()
+                Function(entry) New With {
+                    .Date = FormatLedgerDate(entry.JournalDate),
+                    .JournalNumber = entry.JournalNumber,
+                    .Description = entry.EntryDescription,
+                    .LineDescription = entry.LineDescription,
+                    .Debit = ToDecimal(entry.Debit),
+                    .Credit = ToDecimal(entry.Credit),
+                    .RunningBalance = ToDecimal(entry.RunningBalance)
+    }).ToList()
 
         entriesGrid.DataSource = Nothing
         entriesGrid.DataSource = entryRows
@@ -566,14 +566,32 @@ Public Class GeneralLedgerForm
             $"Closing: {ToDecimal(selectedAccount.ClosingBalance):N2}"
     End Sub
 
+Private Function FormatLedgerDate(value As String) As String
+    Dim parsedDate As DateTime
+
+    If DateTime.TryParse(
+        value,
+        Globalization.CultureInfo.InvariantCulture,
+        Globalization.DateTimeStyles.AssumeUniversal Or
+        Globalization.DateTimeStyles.AdjustToUniversal,
+        parsedDate) Then
+
+        Return parsedDate.ToString(
+            "MMM dd, yyyy",
+            Globalization.CultureInfo.InvariantCulture)
+    End If
+
+    Return value
+End Function
+
     Private Function ContainsText(
         value As String,
         query As String) As Boolean
 
         Return Not String.IsNullOrEmpty(value) AndAlso
-               value.IndexOf(
-                   query,
-                   StringComparison.OrdinalIgnoreCase) >= 0
+            value.IndexOf(
+            query,
+            StringComparison.OrdinalIgnoreCase) >= 0
     End Function
 
     Private Sub SetHeader(
