@@ -153,6 +153,9 @@ Public Class FixedAssetsForm
         editorLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100))
 
         ConfigureTextBox(assetCodeInput)
+        assetCodeInput.ReadOnly = True
+        assetCodeInput.BackColor = Color.FromArgb(240, 245, 240)
+        assetCodeInput.PlaceholderText = "Generated automatically when saved"
         ConfigureTextBox(nameInput)
         ConfigureTextBox(acquisitionCostInput)
         ConfigureTextBox(usefulLifeInput)
@@ -602,11 +605,6 @@ Public Class FixedAssetsForm
         Dim salvage As Decimal
         Dim accountId As Integer
 
-        If String.IsNullOrWhiteSpace(assetCodeInput.Text) Then
-            ShowValidation("Enter an asset code.")
-            Return
-        End If
-
         If String.IsNullOrWhiteSpace(nameInput.Text) Then
             ShowValidation("Enter an asset name.")
             Return
@@ -656,7 +654,6 @@ Public Class FixedAssetsForm
         End If
 
         Dim payload As New Dictionary(Of String, Object) From {
-            {"asset_code", assetCodeInput.Text.Trim()},
             {"name", nameInput.Text.Trim()},
             {"category", categoryInput.SelectedItem.ToString()},
             {"acquisition_cost", cost},
@@ -1044,6 +1041,7 @@ Public Class FixedAssetsForm
         selectedAssetId = Nothing
 
         assetCodeInput.Clear()
+        assetCodeInput.PlaceholderText = "Generated automatically when saved"
         nameInput.Clear()
         categoryInput.SelectedIndex = -1
 

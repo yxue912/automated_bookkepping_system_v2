@@ -34,34 +34,58 @@ public function index(Request $request): JsonResponse
 
 
     public function store(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'asset_code' => [
-                'required',
-                'string',
-                'max:20',
-                'unique:fixed_assets,asset_code',
-            ],
-            'name' => ['required', 'string', 'max:150'],
-            'category' => ['nullable', 'string', 'max:100'],
-            'acquisition_date' => ['nullable', 'date'],
-            'acquisition_cost' => ['required', 'numeric', 'decimal:0,2', 'min:0'],
-            'useful_life_years' => ['nullable', 'numeric', 'gt:0'],
-            'salvage_value' => ['required', 'numeric', 'decimal:0,2', 'min:0'],
-            'location' => ['nullable', 'string', 'max:150'],
-            'account_id' => ['nullable', 'integer', 'exists:accounts,id'],
-            'description' => ['nullable', 'string'],
-        ]);
+{
+    $validated = $request->validate([
+        'name' => ['required', 'string', 'max:150'],
+        'category' => ['nullable', 'string', 'max:100'],
+        'acquisition_date' => ['nullable', 'date'],
+        'acquisition_cost' => ['required', 'numeric', 'decimal:0,2', 'min:0'],
+        'useful_life_years' => ['nullable', 'numeric', 'gt:0'],
+        'salvage_value' => ['required', 'numeric', 'decimal:0,2', 'min:0'],
+        'location' => ['nullable', 'string', 'max:150'],
+        'account_id' => ['nullable', 'integer', 'exists:accounts,id'],
+        'description' => ['nullable', 'string'],
+    ]);
 
-        $this->validateDepreciationBase($validated);
-        $fixedAsset = FixedAsset::create($validated);
+    $this->validateDepreciationBase($validated);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Fixed asset created successfully.',
-            'data' => $fixedAsset,
-        ], 201);
-    }
+    $fixedAsset = \Illuminate\Support\Facades\DB::transaction(
+        function () use ($validated) {
+            // Generate the next available asset code.
+            $lastNumber = FixedAsset::query()
+                ->where('asset_code', 'like', 'AST-%')
+                ->selectRaw(
+                    "MAX(CAST(SUBSTR(asset_code, 5) AS INTEGER)) as last_number"
+                )
+                ->value('last_number');
+
+            $nextNumber = ((int) $lastNumber) + 1;
+
+            do {
+                $assetCode = 'AST-' . str_pad(
+                    (string) $nextNumber,
+                    4,
+                    '0',
+                    STR_PAD_LEFT
+                );
+
+                $nextNumber++;
+            } while (
+                FixedAsset::where('asset_code', $assetCode)->exists()
+            );
+
+            $validated['asset_code'] = $assetCode;
+
+            return FixedAsset::create($validated);
+        }
+    );
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Fixed asset created successfully.',
+        'data' => $fixedAsset,
+    ], 201);
+}
 
     public function show(FixedAsset $fixedAsset): JsonResponse
     {

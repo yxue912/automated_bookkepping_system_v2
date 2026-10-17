@@ -1,4 +1,4 @@
-Imports System.Drawing
+﻿Imports System.Drawing
 Imports System.Net.Http
 Imports System.Net.Http.Json
 Imports System.Text.Json
@@ -197,6 +197,9 @@ Public Class CashReceiptsForm
         receiptDatePicker.Format = DateTimePickerFormat.Short
 
         ConfigureInput(orNumberInput)
+        orNumberInput.ReadOnly = True
+        orNumberInput.BackColor = Color.FromArgb(240, 245, 240)
+        orNumberInput.PlaceholderText = "Generated automatically when saved"
         ConfigureInput(payorInput)
         ConfigureInput(glAccountCombo)
         ConfigureInput(depositAccountCombo)
@@ -463,59 +466,73 @@ Public Class CashReceiptsForm
         End Select
     End Function
 
-    Private Async Function LoadReceiptsAsync() As Task
-        Try
-            ApiSession.ApplyAuthorization()
+Private Function FormatReceiptDate(value As String) As String
+    If String.IsNullOrWhiteSpace(value) Then
+        Return ""
+    End If
 
-            Using response As HttpResponseMessage =
-                Await ApiSession.Client.GetAsync("cash-receipts")
+    Dim parsedDate As DateTime
 
-                Dim body As String =
-                    Await response.Content.ReadAsStringAsync()
+    If DateTime.TryParse(value, parsedDate) Then
+        Return parsedDate.ToString("MMM dd, yyyy")
+    End If
 
-                If Not response.IsSuccessStatusCode Then
-                    Throw New Exception(body)
-                End If
+    Return value
+End Function
 
-                Dim result = JsonSerializer.Deserialize(
-                    Of ApiResponse(Of List(Of ReceiptItem)))(body, jsonOptions)
+Private Async Function LoadReceiptsAsync() As Task
+    Try
+        ApiSession.ApplyAuthorization()
 
-                Dim receipts As List(Of ReceiptItem) =
-                    If(result?.Data, New List(Of ReceiptItem)())
+        Using response As HttpResponseMessage =
+            Await ApiSession.Client.GetAsync("cash-receipts")
 
-                Dim displayRows = receipts.Select(
-                    Function(r) New With {
-                        .Id = r.Id,
-                        .ReceiptDate = r.ReceiptDate,
-                        .OrNumber = r.OrNumber,
-                        .Payor = r.Payor,
-                        .GlAccount = If(r.Account IsNot Nothing,
-                                        r.Account.Code & " - " & r.Account.Name,
-                                        r.AccountId.ToString()),
-                        .DepositAccount = If(r.DepositAccount IsNot Nothing,
-                                             r.DepositAccount.Code & " - " & r.DepositAccount.Name,
-                                             If(r.DepositAccountId.HasValue,
-                                                r.DepositAccountId.Value.ToString(),
-                                                "")),
-                        .Amount = r.AmountValue,
-                        .Bank = r.BankDeposited,
-                        .Status = If(String.IsNullOrWhiteSpace(r.Status),
-                                     "Unknown",
-                                     r.Status)
-                    }).ToList()
+            Dim body As String =
+                Await response.Content.ReadAsStringAsync()
 
-                receiptsGrid.DataSource = Nothing
-                receiptsGrid.DataSource = displayRows
+            If Not response.IsSuccessStatusCode Then
+                Throw New Exception(body)
+            End If
 
-                UpdatePostButton()
+            Dim result = JsonSerializer.Deserialize(
+                Of ApiResponse(Of List(Of ReceiptItem)))(body, jsonOptions)
 
-                SetStatus($"{receipts.Count} receipt(s) loaded.")
-            End Using
+            Dim receipts As List(Of ReceiptItem) =
+                If(result?.Data, New List(Of ReceiptItem)())
 
-        Catch ex As Exception
-            SetStatus("Could not load receipts: " & ex.Message, True)
-        End Try
-    End Function
+            Dim displayRows = receipts.Select(
+                Function(r) New With {
+                    .Id = r.Id,
+                    .ReceiptDate = FormatReceiptDate(r.ReceiptDate),
+                    .OrNumber = r.OrNumber,
+                    .Payor = r.Payor,
+                    .GlAccount = If(r.Account IsNot Nothing,
+                    r.Account.Code & " - " & r.Account.Name,
+                    r.AccountId.ToString()),
+                    .DepositAccount = If(r.DepositAccount IsNot Nothing,
+                    r.DepositAccount.Code & " - " & r.DepositAccount.Name,
+                    If(r.DepositAccountId.HasValue,
+                                            r.DepositAccountId.Value.ToString(),
+                                            "")),
+                    .Amount = r.AmountValue,
+                    .Bank = r.BankDeposited,
+                    .Status = If(String.IsNullOrWhiteSpace(r.Status),
+                    "Unknown",
+                    r.Status)
+                }).ToList()
+
+            receiptsGrid.DataSource = Nothing
+            receiptsGrid.DataSource = displayRows
+
+            UpdatePostButton()
+
+            SetStatus($"{receipts.Count} receipt(s) loaded.")
+        End Using
+
+    Catch ex As Exception
+        SetStatus("Could not load receipts: " & ex.Message, True)
+    End Try
+End Function
 
     Private Sub ReceiptSelectionChanged(sender As Object, e As EventArgs)
         UpdatePostButton()
@@ -543,13 +560,6 @@ Public Class CashReceiptsForm
     End Sub
 
     Private Async Sub SaveReceiptClicked(sender As Object, e As EventArgs)
-        If String.IsNullOrWhiteSpace(orNumberInput.Text) Then
-            MessageBox.Show("Enter the OR number.", "Required Field",
-                            MessageBoxButtons.OK, MessageBoxIcon.Warning)
-            orNumberInput.Focus()
-            Return
-        End If
-
         If String.IsNullOrWhiteSpace(payorInput.Text) Then
             MessageBox.Show("Enter the payor.", "Required Field",
                             MessageBoxButtons.OK, MessageBoxIcon.Warning)
@@ -605,7 +615,6 @@ Public Class CashReceiptsForm
 
         Dim payload As New Dictionary(Of String, Object) From {
             {"receipt_date", receiptDatePicker.Value.ToString("yyyy-MM-dd")},
-            {"or_number", orNumberInput.Text.Trim()},
             {"payor", payorInput.Text.Trim()},
             {"account_id", glAccount.Id},
             {"deposit_account_id", depositAccount.Id},
@@ -630,34 +639,26 @@ Public Class CashReceiptsForm
                     Await response.Content.ReadAsStringAsync()
 
                 If Not response.IsSuccessStatusCode Then
-                    If response.StatusCode =
-                        Net.HttpStatusCode.UnprocessableEntity AndAlso
-                        body.Contains("""or_number""") AndAlso
-                        body.Contains("already been taken") Then
-
-                        MessageBox.Show(
-                            "This OR number already exists. Enter a unique OR number and try again.",
-                            "Duplicate OR Number",
-                            MessageBoxButtons.OK,
-                            MessageBoxIcon.Warning)
-
-                        SetStatus(
-                            "Duplicate OR number. Enter a unique number.",
-                            True)
-
-                        Return
-                    End If
-
                     Throw New Exception(body)
                 End If
 
                 Dim result = JsonSerializer.Deserialize(
                     Of ApiResponse(Of ReceiptItem))(body, jsonOptions)
 
-                MessageBox.Show(
+                Dim successMessage As String =
                     If(String.IsNullOrWhiteSpace(result?.Message),
                        "Receipt saved as Draft.",
-                       result.Message),
+                       result.Message)
+
+                If result IsNot Nothing AndAlso
+                   result.Data IsNot Nothing AndAlso
+                   Not String.IsNullOrWhiteSpace(result.Data.OrNumber) Then
+                    successMessage &= Environment.NewLine &
+                        "Generated OR Number: " & result.Data.OrNumber
+                End If
+
+                MessageBox.Show(
+                    successMessage,
                     "Cash Receipt Saved",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information)
@@ -814,6 +815,7 @@ Public Class CashReceiptsForm
     Private Sub ClearInputs()
         receiptDatePicker.Value = Date.Today
         orNumberInput.Clear()
+        orNumberInput.PlaceholderText = "Generated automatically when saved"
         payorInput.Clear()
         amountInput.Clear()
         bankInput.Clear()

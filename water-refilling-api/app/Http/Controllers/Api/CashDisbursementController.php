@@ -40,12 +40,6 @@ class CashDisbursementController extends Controller
     ): JsonResponse {
         $validated = $request->validate([
             'disbursement_date' => ['required', 'date'],
-            'voucher_number' => [
-                'required',
-                'string',
-                'max:30',
-                'unique:cash_disbursements,voucher_number',
-            ],
             'payee' => ['required', 'string', 'max:150'],
             'account_id' => ['required', 'integer', 'exists:accounts,id'],
             'payment_account_id' => [
@@ -107,7 +101,10 @@ class CashDisbursementController extends Controller
                 ]);
             }
 
+            // Generate an unpredictable voucher number on the server.
+            // The database unique index remains the final duplicate safeguard.
             $disbursementData = $validated;
+            $disbursementData['voucher_number'] = $this->generateUniqueVoucherNumber();
             $disbursementData['status'] = 'Draft';
             // Always assign ownership from the authenticated session, never request input.
             $disbursementData['created_by'] = $request->user()->id;
@@ -120,7 +117,7 @@ class CashDisbursementController extends Controller
                 'journal_number' => 'CD-' . $disbursement->id,
                 'journal_date' => $validated['disbursement_date'],
                 'description' => 'Cash disbursement voucher '
-                    . $validated['voucher_number']
+                    . $disbursement->voucher_number
                     . ' - '
                     . $validated['payee'],
                 'reference_type' => 'CashDisbursement',
@@ -293,6 +290,36 @@ class CashDisbursementController extends Controller
         ]);
     }
 
+    /** Generate CV- plus eight random digits, checking both voucher tables. */
+    private function generateUniqueVoucherNumber(): string
+    {
+        for ($attempt = 0; $attempt < 20; $attempt++) {
+            $candidate = 'CV-' . str_pad(
+                (string) random_int(0, 99999999),
+                8,
+                '0',
+                STR_PAD_LEFT
+            );
+
+            $existsInDisbursements = CashDisbursement::where(
+                'voucher_number',
+                $candidate
+            )->exists();
+            $existsInCheckVouchers = CashCheckVoucher::where(
+                'voucher_number',
+                $candidate
+            )->exists();
+
+            if (! $existsInDisbursements && ! $existsInCheckVouchers) {
+                return $candidate;
+            }
+        }
+
+        throw ValidationException::withMessages([
+            'voucher_number' => 'A unique voucher number could not be generated. Please try saving again.',
+        ]);
+    }
+
     public function update(
         Request $request,
         CashDisbursement $cashDisbursement
@@ -301,13 +328,6 @@ class CashDisbursementController extends Controller
 
         $validated = $request->validate([
             'disbursement_date' => ['required', 'date'],
-            'voucher_number' => [
-                'required',
-                'string',
-                'max:30',
-                'unique:cash_disbursements,voucher_number,'
-                    . $cashDisbursement->id,
-            ],
             'payee' => ['required', 'string', 'max:150'],
             'account_id' => ['required', 'integer', 'exists:accounts,id'],
             'payment_account_id' => [
@@ -357,7 +377,7 @@ class CashDisbursementController extends Controller
             if (
                 CashCheckVoucher::where(
                     'voucher_number',
-                    $validated['voucher_number']
+                    $disbursement->voucher_number
                 )->exists()
             ) {
                 throw ValidationException::withMessages([
@@ -415,7 +435,7 @@ class CashDisbursementController extends Controller
             $entry->update([
                 'journal_date' => $validated['disbursement_date'],
                 'description' => 'Cash disbursement voucher '
-                    . $validated['voucher_number']
+                    . $disbursement->voucher_number
                     . ' - '
                     . $validated['payee'],
             ]);

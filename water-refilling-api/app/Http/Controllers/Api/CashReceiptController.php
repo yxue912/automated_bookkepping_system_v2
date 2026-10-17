@@ -34,12 +34,6 @@ class CashReceiptController extends Controller
     {
         $validated = $request->validate([
             'receipt_date' => ['required', 'date'],
-            'or_number' => [
-                'required',
-                'string',
-                'max:30',
-                'unique:cash_receipts,or_number',
-            ],
             'payor' => ['required', 'string', 'max:150'],
             'account_id' => ['required', 'integer', 'exists:accounts,id'],
             'deposit_account_id' => [
@@ -93,18 +87,43 @@ class CashReceiptController extends Controller
                 ]);
             }
 
+            // Create the record first to obtain its unique database ID.
+            // The temporary value is replaced before the transaction commits.
             $receiptData = $validated;
+            $receiptData['or_number'] = 'TMP-' . bin2hex(random_bytes(10));
             $receiptData['status'] = 'Draft';
-            // Always assign ownership from the authenticated session, never request input.
+            // Ownership always comes from the authenticated session.
             $receiptData['created_by'] = $request->user()->id;
 
             $receipt = CashReceipt::create($receiptData);
+
+            // Generate the OR number from the unique receipt ID.
+            // If an older record already uses the base number, add a suffix.
+            $baseNumber = (int) $receipt->id;
+            $baseOrNumber = 'OR-' . str_pad(
+                (string) $baseNumber,
+                4,
+                '0',
+                STR_PAD_LEFT
+            );
+            $orNumber = $baseOrNumber;
+            $suffix = 1;
+
+            while (CashReceipt::where('or_number', $orNumber)
+                ->where('id', '!=', $receipt->id)
+                ->exists()) {
+                $orNumber = $baseOrNumber . '-' . $suffix;
+                $suffix++;
+            }
+
+            $receipt->or_number = $orNumber;
+            $receipt->save();
 
             $entry = JournalEntry::create([
                 'journal_number' => 'CR-' . $receipt->id,
                 'journal_date' => $validated['receipt_date'],
                 'description' => 'Cash receipt OR '
-                    . $validated['or_number']
+                    . $receipt->or_number
                     . ' - '
                     . $validated['payor'],
                 'reference_type' => 'CashReceipt',
@@ -244,12 +263,6 @@ class CashReceiptController extends Controller
 
         $validated = $request->validate([
             'receipt_date' => ['required', 'date'],
-            'or_number' => [
-                'required',
-                'string',
-                'max:30',
-                'unique:cash_receipts,or_number,' . $cashReceipt->id,
-            ],
             'payor' => ['required', 'string', 'max:150'],
             'account_id' => ['required', 'integer', 'exists:accounts,id'],
             'deposit_account_id' => [
@@ -324,7 +337,7 @@ class CashReceiptController extends Controller
             $entry->update([
                 'journal_date' => $validated['receipt_date'],
                 'description' => 'Cash receipt OR '
-                    . $validated['or_number']
+                    . $cashReceipt->or_number
                     . ' - '
                     . $validated['payor'],
             ]);

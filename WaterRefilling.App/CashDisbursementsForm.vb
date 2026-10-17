@@ -1,4 +1,4 @@
-Imports System.Drawing
+﻿Imports System.Drawing
 Imports System.Globalization
 Imports System.Linq
 Imports System.Net.Http
@@ -169,6 +169,8 @@ Public Class CashDisbursementsForm
         dateInput.Format = DateTimePickerFormat.Short
 
         ConfigureInput(voucherInput)
+        voucherInput.ReadOnly = True
+        voucherInput.PlaceholderText = "Generated automatically when saved"
         ConfigureInput(payeeInput)
         ConfigureInput(expenseAccountCombo)
         ConfigureInput(paymentAccountCombo)
@@ -384,7 +386,7 @@ Public Class CashDisbursementsForm
 
                 Dim rows = items.Select(
                     Function(d) New With {
-                        .DisbursementDate = d.DisbursementDate,
+                        .DisbursementDate = FormatDisbursementDate(d.DisbursementDate),
                         .VoucherNumber = d.VoucherNumber,
                         .Payee = d.Payee,
                         .ExpenseAccountName = If(d.ExpenseAccount IsNot Nothing,
@@ -410,12 +412,19 @@ Public Class CashDisbursementsForm
         End Try
     End Function
 
-    Private Async Sub SaveClicked(sender As Object, e As EventArgs)
-        If String.IsNullOrWhiteSpace(voucherInput.Text) Then
-            ShowValidation("Enter the voucher number.", voucherInput)
-            Return
+    Private Function FormatDisbursementDate(value As String) As String
+        If String.IsNullOrWhiteSpace(value) Then Return ""
+
+        Dim parsed As DateTime
+        If DateTime.TryParse(value, CultureInfo.InvariantCulture,
+                             DateTimeStyles.AssumeLocal, parsed) Then
+            Return parsed.ToString("MMM dd, yyyy", CultureInfo.InvariantCulture)
         End If
 
+        Return value
+    End Function
+
+    Private Async Sub SaveClicked(sender As Object, e As EventArgs)
         If String.IsNullOrWhiteSpace(payeeInput.Text) Then
             ShowValidation("Enter the payee.", payeeInput)
             Return
@@ -452,7 +461,6 @@ Public Class CashDisbursementsForm
 
         Dim payload = New Dictionary(Of String, Object) From {
             {"disbursement_date", dateInput.Value.ToString("yyyy-MM-dd")},
-            {"voucher_number", voucherInput.Text.Trim()},
             {"payee", payeeInput.Text.Trim()},
             {"account_id", expenseAccount.Id},
             {"payment_account_id", paymentAccount.Id},
@@ -486,10 +494,21 @@ Public Class CashDisbursementsForm
                 Dim result = JsonSerializer.Deserialize(
                     Of ApiResponse(Of DisbursementItem))(body, jsonOptions)
 
+                Dim generatedVoucher As String = If(
+                    result?.Data IsNot Nothing,
+                    result.Data.VoucherNumber,
+                    "")
+                Dim successMessage As String = If(
+                    String.IsNullOrWhiteSpace(result?.Message),
+                    "Disbursement saved successfully.",
+                    result.Message)
+                If Not String.IsNullOrWhiteSpace(generatedVoucher) Then
+                    successMessage &= Environment.NewLine & Environment.NewLine &
+                        "Generated voucher number: " & generatedVoucher
+                End If
+
                 MessageBox.Show(
-                    If(String.IsNullOrWhiteSpace(result?.Message),
-                       "Disbursement saved and journal entry posted.",
-                       result.Message),
+                    successMessage,
                     "Disbursement Saved",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information)
