@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class CashReceipt extends Model
 {
     protected $fillable = [
+        'created_by',
         'receipt_date',
         'or_number',
         'payor',

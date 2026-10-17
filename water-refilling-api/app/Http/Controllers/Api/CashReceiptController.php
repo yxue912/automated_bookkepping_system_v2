@@ -14,16 +14,19 @@ use Illuminate\Validation\ValidationException;
 
 class CashReceiptController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
+        $query = CashReceipt::with(['account', 'depositAccount']);
+
+        // Staff can see only transactions they created. Owner/Admin retain
+        // the existing all-records view.
+        if ($request->user()?->hasRole('Staff')) {
+            $query->where('created_by', $request->user()->id);
+        }
+
         return response()->json([
             'success' => true,
-            'data' => CashReceipt::with([
-                'account',
-                'depositAccount',
-            ])
-                ->orderByDesc('receipt_date')
-                ->get(),
+            'data' => $query->orderByDesc('receipt_date')->get(),
         ]);
     }
 
@@ -92,6 +95,8 @@ class CashReceiptController extends Controller
 
             $receiptData = $validated;
             $receiptData['status'] = 'Draft';
+            // Always assign ownership from the authenticated session, never request input.
+            $receiptData['created_by'] = $request->user()->id;
 
             $receipt = CashReceipt::create($receiptData);
 
@@ -144,6 +149,8 @@ class CashReceiptController extends Controller
         CashReceipt $cashReceipt,
         JournalEntryService $journalEntryService
     ): JsonResponse {
+        $this->authorizeRecordAccess($cashReceipt);
+
         return DB::transaction(function () use (
             $cashReceipt,
             $journalEntryService
@@ -212,6 +219,8 @@ class CashReceiptController extends Controller
 
     public function show(CashReceipt $cashReceipt): JsonResponse
     {
+        $this->authorizeRecordAccess($cashReceipt);
+
         return response()->json([
             'success' => true,
             'data' => $cashReceipt->load([
@@ -225,6 +234,8 @@ class CashReceiptController extends Controller
         Request $request,
         CashReceipt $cashReceipt
     ): JsonResponse {
+        $this->authorizeRecordAccess($cashReceipt);
+
         if ($cashReceipt->status !== 'Draft') {
             throw ValidationException::withMessages([
                 'status' => 'Only Draft receipts can be edited.',
@@ -358,6 +369,8 @@ class CashReceiptController extends Controller
 
     public function destroy(CashReceipt $cashReceipt): JsonResponse
     {
+        $this->authorizeRecordAccess($cashReceipt);
+
         if ($cashReceipt->status !== 'Draft') {
             throw ValidationException::withMessages([
                 'status' => 'Only Draft receipts can be deleted.',
@@ -403,4 +416,18 @@ class CashReceiptController extends Controller
             'message' => 'Draft receipt deleted successfully.',
         ]);
     }
+
+    /** Prevent Staff from viewing or changing another user's transaction. */
+    private function authorizeRecordAccess(CashReceipt $receipt): void
+    {
+        $user = request()->user();
+
+        abort_unless(
+            $user !== null &&
+            (! $user->hasRole('Staff') || (int) $receipt->created_by === (int) $user->id),
+            403,
+            'You may only access your own cash receipts.'
+        );
+    }
+
 }

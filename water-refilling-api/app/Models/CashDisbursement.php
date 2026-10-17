@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class CashDisbursement extends Model
 {
     protected $fillable = [
+        'created_by',
         'disbursement_date',
         'voucher_number',
         'payee',

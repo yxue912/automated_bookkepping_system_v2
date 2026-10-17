@@ -18,16 +18,19 @@ use Illuminate\Support\Facades\Gate;
 
 class CashDisbursementController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
+        $query = CashDisbursement::with(['account', 'paymentAccount']);
+
+        // Staff can see only transactions they created. Owner/Admin retain
+        // the existing all-records view.
+        if ($request->user()?->hasRole('Staff')) {
+            $query->where('created_by', $request->user()->id);
+        }
+
         return response()->json([
             'success' => true,
-            'data' => CashDisbursement::with([
-                'account',
-                'paymentAccount',
-            ])
-                ->orderByDesc('disbursement_date')
-                ->get(),
+            'data' => $query->orderByDesc('disbursement_date')->get(),
         ]);
     }
 
@@ -106,6 +109,8 @@ class CashDisbursementController extends Controller
 
             $disbursementData = $validated;
             $disbursementData['status'] = 'Draft';
+            // Always assign ownership from the authenticated session, never request input.
+            $disbursementData['created_by'] = $request->user()->id;
 
             $disbursement = CashDisbursement::create(
                 $disbursementData
@@ -197,6 +202,7 @@ class CashDisbursementController extends Controller
         CashDisbursement $cashDisbursement,
         JournalEntryService $journalEntryService
     ): JsonResponse {
+        $this->authorizeRecordAccess($cashDisbursement);
         $user = Auth::user();
 
         $user = Auth::user();
@@ -276,6 +282,8 @@ class CashDisbursementController extends Controller
     public function show(
         CashDisbursement $cashDisbursement
     ): JsonResponse {
+        $this->authorizeRecordAccess($cashDisbursement);
+
         return response()->json([
             'success' => true,
             'data' => $cashDisbursement->load([
@@ -289,6 +297,8 @@ class CashDisbursementController extends Controller
         Request $request,
         CashDisbursement $cashDisbursement
     ): JsonResponse {
+        $this->authorizeRecordAccess($cashDisbursement);
+
         $validated = $request->validate([
             'disbursement_date' => ['required', 'date'],
             'voucher_number' => [
@@ -455,6 +465,8 @@ class CashDisbursementController extends Controller
     public function destroy(
         CashDisbursement $cashDisbursement
     ): JsonResponse {
+        $this->authorizeRecordAccess($cashDisbursement);
+
         if ($cashDisbursement->status !== 'Draft') {
             throw ValidationException::withMessages([
                 'status' =>
@@ -506,4 +518,18 @@ class CashDisbursementController extends Controller
             'message' => 'Draft disbursement deleted successfully.',
         ]);
     }
+
+    /** Prevent Staff from viewing or changing another user's transaction. */
+    private function authorizeRecordAccess(CashDisbursement $disbursement): void
+    {
+        $user = request()->user();
+
+        abort_unless(
+            $user !== null &&
+            (! $user->hasRole('Staff') || (int) $disbursement->created_by === (int) $user->id),
+            403,
+            'You may only access your own cash disbursements.'
+        );
+    }
+
 }
